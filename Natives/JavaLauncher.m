@@ -203,6 +203,22 @@ static NSString *BundledDebugJITRuntime(int minimumVersion) {
     return nil;
 }
 
+// Resolves the profile's lwjglVersion setting to a concrete version:
+//   "333" / "341" -> used as-is
+//   "auto"        -> LWJGL 3.4.1 for Minecraft 26.x and newer, 3.3.3 otherwise
+static NSString *ResolveLwjglVersion(NSString *profileValue, NSString *mcVersionId) {
+    if ([profileValue isEqualToString:@"333"] || [profileValue isEqualToString:@"341"]) {
+        return profileValue;
+    }
+    if (mcVersionId.length > 0) {
+        NSArray *parts = [mcVersionId componentsSeparatedByString:@"."];
+        if (parts.count >= 2 && [parts[0] intValue] >= 26) {
+            return @"341";
+        }
+    }
+    return @"333";
+}
+
 int launchJVM(NSString *username, id launchTarget, int width, int height, int minVersion) {
     NSLog(@"[JavaLauncher] Beginning JVM launch");
     const int requiredJavaVersion = minVersion;
@@ -445,6 +461,18 @@ int launchJVM(NSString *username, id launchTarget, int width, int height, int mi
     margv[++margc] = "-Dorg.lwjgl.spvc.libname=spirv-cross-c-shared.0";
 
     NSString *librariesPath = [NSString stringWithFormat:@"%@/libs", NSBundle.mainBundle.bundlePath];
+
+    // Select the LWJGL jar set (libs/lwjgl-333 vs libs/lwjgl-341) and tell
+    // the Java side which one is active via -Dpojav.lwjgl.version.
+    NSString *lwjglVersion = @"333";
+    if ([launchTarget isKindOfClass:NSDictionary.class]) {
+        lwjglVersion = ResolveLwjglVersion(
+            [PLProfiles resolveKeyForCurrentProfile:@"lwjglVersion"],
+            [launchTarget[@"id"] description]);
+    }
+    NSLog(@"[JavaLauncher] Using LWJGL %@", lwjglVersion);
+    margv[++margc] = [NSString stringWithFormat:@"-Dpojav.lwjgl.version=%@", lwjglVersion].UTF8String;
+
     margv[++margc] = [NSString stringWithFormat:@"-javaagent:%@/patchjna_agent.jar=", librariesPath].UTF8String;
     if(getPrefBool(@"general.cosmetica")) {
         margv[++margc] = [NSString stringWithFormat:@"-javaagent:%@/arc_dns_injector.jar=23.95.137.176", librariesPath].UTF8String;
@@ -555,7 +583,7 @@ int launchJVM(NSString *username, id launchTarget, int width, int height, int mi
     init_loadCustomJvmFlags(&margc, (const char **)margv);
     NSLog(@"[Init] Found JLI lib");
 
-    NSString *classpath = [NSString stringWithFormat:@"%@/*", librariesPath];
+    NSString *classpath = [NSString stringWithFormat:@"%@/*:%@/lwjgl-%@/*", librariesPath, librariesPath, lwjglVersion];
     if (launchJar) {
         classpath = [classpath stringByAppendingFormat:@":%@", launchTarget];
     }

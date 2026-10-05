@@ -41,6 +41,7 @@ static PLProfiles* current;
 
     NSDictionary *valueDefaults = @{
         @"javaVersion": @"0",
+        @"lwjglVersion": @"auto",
         @"gameDir": @"."
     };
     if (valueDefaults[key]) {
