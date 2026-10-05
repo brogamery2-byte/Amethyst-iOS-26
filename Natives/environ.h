@@ -1,12 +1,17 @@
 //
 // Created by maks on 24.09.2022.
 //
+// Updated for SDL3 compatibility while keeping the existing GLFW pipeline intact.
 
 #ifndef POJAVLAUNCHER_ENVIRON_H
 #define POJAVLAUNCHER_ENVIRON_H
 
 #include <stdatomic.h>
 #include "jni.h"
+
+// Runtime switch: set USE_SDL3=1 to enable the compatibility path.
+// This is intentionally conservative: the existing GLFW bridge remains the default.
+#define USE_SDL3_COMPAT ((getenv("USE_SDL3") != NULL) || (getenv("AMETHYST_SDL3") != NULL))
 
 typedef struct {
     short type;
@@ -21,6 +26,15 @@ typedef struct {
     short i3;
     short i4;
 } GLFWInputEvent;
+
+// SDL3 compatibility payload for event-mapping layer.
+typedef struct {
+    int event_type;
+    int scancode;
+    int keycode;
+    int mods;
+    unsigned int text;
+} SDL3InputEvent;
 
 typedef void GLFW_invoke_Char_func(void* window, unsigned int codepoint);
 typedef void GLFW_invoke_CharMods_func(void* window, unsigned int codepoint, int mods);
@@ -59,6 +73,7 @@ jmethodID method_SystemClipboardDataReceived;
     //int savedWidth, savedHeight;
     int windowWidth, windowHeight;
     int physicalWidth, physicalHeight;
+    bool useSDL3Backend;
 #define ADD_CALLBACK_WWIN(NAME) \
     GLFW_invoke_##NAME##_func* GLFW_invoke_##NAME;
     ADD_CALLBACK_WWIN(Char);
